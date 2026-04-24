@@ -554,12 +554,34 @@
 
       <div class="form-group">
         <div class="form-label">UTM Source <span class="required">*</span></div>
-        <input type="text" class="form-input" id="new-source" placeholder="google, naver, kakao..." />
+        <select class="form-select" id="new-source">
+          <option value="">— 선택하세요 —</option>
+          <option value="naver">naver</option>
+          <option value="google">google</option>
+          <option value="kakao">kakao</option>
+          <option value="sms">SMS</option>
+          <option value="meta">meta</option>
+          <option value="x">x</option>
+        </select>
       </div>
 
       <div class="form-group">
         <div class="form-label">UTM Medium <span class="required">*</span></div>
-        <input type="text" class="form-input" id="new-medium" placeholder="cpc, email, social..." />
+        <div class="sidebar-dept-wrap">
+          <select class="form-select" id="new-medium" onchange="handleSidebarMediumChange(this)">
+            <option value="">— 선택하세요 —</option>
+          <option value="cpc">cpc</option>
+          <option value="display">display</option>
+          <option value="social">social</option>
+          <option value="paid_social">paid_social</option>
+          <option value="sms">sms</option>
+          <option value="email">email</option>
+          <option value="push">push</option>
+          <option value="기타">기타</option>
+          </select>
+          <input type="text" class="form-input" id="new-medium-custom" placeholder="직접 입력..."
+            style="display:none;" />
+        </div>
       </div>
 
       <div class="form-group">
@@ -601,14 +623,12 @@
     <div class="sidebar-section">
       <div class="sidebar-title">소스 프리셋</div>
       <div class="presets" id="source-presets">
-        <div class="preset-chip" onclick="applyPreset('google','cpc')">Google CPC</div>
         <div class="preset-chip" onclick="applyPreset('naver','cpc')">Naver CPC</div>
+        <div class="preset-chip" onclick="applyPreset('google','cpc')">Google CPC</div>
         <div class="preset-chip" onclick="applyPreset('kakao','cpc')">Kakao CPC</div>
-        <div class="preset-chip" onclick="applyPreset('facebook','social')">Facebook</div>
-        <div class="preset-chip" onclick="applyPreset('instagram','social')">Instagram</div>
-        <div class="preset-chip" onclick="applyPreset('youtube','video')">YouTube</div>
-        <div class="preset-chip" onclick="applyPreset('newsletter','email')">Email</div>
-        <div class="preset-chip" onclick="applyPreset('line','message')">LINE</div>
+        <div class="preset-chip" onclick="applyPreset('sms','sms')">SMS</div>
+        <div class="preset-chip" onclick="applyPreset('meta','social')">Meta Social</div>
+        <div class="preset-chip" onclick="applyPreset('x','social')">X Social</div>
       </div>
     </div>
 
@@ -775,6 +795,57 @@ function handleDeptChange(id, sel) {
   }
 }
 
+function handleSidebarMediumChange(sel) {
+  const customInput = document.getElementById('new-medium-custom');
+  if (sel.value === '기타') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+const MEDIUM_OPTIONS_LIST = ['cpc','display','social','paid_social','sms','email','push'];
+
+function handleMediumCellChange(id, sel) {
+  const row = rows.find(r => r.id === id);
+  if (!row) return;
+  if (sel.value === '기타') {
+    row.medium = '';
+    renderTable();
+    // focus the custom input in the re-rendered row
+    const tr = document.querySelector(`tr[data-id="${id}"]`);
+    if (tr) {
+      const inp = tr.querySelectorAll('.dept-custom-input')[0];
+      if (inp) inp.focus();
+    }
+  } else {
+    row.medium = sel.value;
+    maybeStampDate(row);
+    // re-render just UTM result
+    const tr = document.querySelector(`tr[data-id="${id}"]`);
+    if (tr) {
+      const utm = buildUTM(row);
+      const ok = isComplete(row);
+      const dotClass = ok ? 'dot-ok' : (row.url || row.source || row.medium || row.campaign ? 'dot-partial' : 'dot-empty');
+      const resultCell = tr.querySelector('.utm-result');
+      if (resultCell) {
+        resultCell.innerHTML = `
+          <div class="status-dot ${dotClass}"></div>
+          <div class="utm-url ${utm ? '' : 'empty'}">${utm ? escHtml(utm) : '— 필수 항목을 입력하세요'}</div>
+          ${utm ? `<button class="copy-btn" onclick="copyUTM(this, '${escAttr(utm)}')">복사</button>` : ''}
+        `;
+      }
+      if (!row.createdAt) {
+        const dateBadge = tr.querySelector('.date-badge');
+        if (dateBadge && row.createdAt) { dateBadge.textContent = row.createdAt; dateBadge.classList.add('set'); }
+      }
+    }
+    updateStats();
+  }
+}
+
 function handleSidebarDeptChange(sel) {
   const customInput = document.getElementById('new-dept-custom');
   if (sel.value === '기타') {
@@ -809,8 +880,21 @@ function renderTable() {
           onchange="toggleRow(${row.id}, this)" />
       </td>
       <td><input class="cell-input" value="${escHtml(row.url||'')}" placeholder="https://..." oninput="updateCell(${row.id},'url',this.value)" /></td>
-      <td><input class="cell-input" value="${escHtml(row.source||'')}" placeholder="google" oninput="updateCell(${row.id},'source',this.value)" /></td>
-      <td><input class="cell-input" value="${escHtml(row.medium||'')}" placeholder="cpc" oninput="updateCell(${row.id},'medium',this.value)" /></td>
+      <td><div class="dept-cell">
+        <select class="dept-select" onchange="updateCell(${row.id},'source',this.value)">
+          <option value="">— 선택 —</option>
+          ${['naver','google','kakao','sms','meta','x'].map(s => `<option value="${s}" ${(row.source||'') === s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div></td>
+      <td><div class="dept-cell">
+        <select class="dept-select" onchange="handleMediumCellChange(${row.id},this)">
+          <option value="">— 선택 —</option>
+          ${['cpc','display','social','paid_social','sms','email','push'].map(m => `<option value="${m}" ${(row.medium||'')=== m?'selected':''}>${m}</option>`).join('')}
+          <option value="기타" ${row.medium && !['cpc','display','social','paid_social','sms','email','push'].includes(row.medium)?'selected':''}>기타 (직접입력)</option>
+        </select>
+      </div>
+      ${row.medium && !['cpc','display','social','paid_social','sms','email','push'].includes(row.medium) ? `<div style="padding:0 8px;"><input class="dept-custom-input" style="border-left-color:var(--accent)" value="${escHtml(row.medium)}" placeholder="직접 입력..." oninput="updateCell(${row.id},'medium',this.value)" /></div>` : ''}
+      </td>
       <td><input class="cell-input" value="${escHtml(row.campaign||'')}" placeholder="campaign" oninput="updateCell(${row.id},'campaign',this.value)" /></td>
       <td><input class="cell-input" value="${escHtml(row.term||'')}" placeholder="keyword" oninput="updateCell(${row.id},'term',this.value)" /></td>
       <td><input class="cell-input" value="${escHtml(row.content||'')}" placeholder="banner_a" oninput="updateCell(${row.id},'content',this.value)" /></td>
@@ -888,7 +972,9 @@ function addRow(data = {}) {
 
   const url = data.url || document.getElementById('new-url').value.trim();
   const source = data.source || document.getElementById('new-source').value.trim();
-  const medium = data.medium || document.getElementById('new-medium').value.trim();
+  const medSelEl = document.getElementById('new-medium');
+  const medCustomEl = document.getElementById('new-medium-custom');
+  let medium = data.medium || (medSelEl.value === '기타' ? medCustomEl.value.trim() : medSelEl.value);
   const campaign = data.campaign || document.getElementById('new-campaign').value.trim();
   const term = data.term || document.getElementById('new-term').value.trim();
   const content = data.content || document.getElementById('new-content').value.trim();
@@ -901,9 +987,13 @@ function addRow(data = {}) {
   renderTable();
 
   // Clear form
-  ['new-url','new-source','new-medium','new-campaign','new-term','new-content'].forEach(id => {
+  ['new-url','new-campaign','new-term','new-content'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  document.getElementById('new-source').value = '';
+  document.getElementById('new-medium').value = '';
+  document.getElementById('new-medium-custom').value = '';
+  document.getElementById('new-medium-custom').style.display = 'none';
   deptSel.value = '';
   deptCustom.value = '';
   deptCustom.style.display = 'none';
@@ -982,8 +1072,23 @@ function exportCSV() {
 }
 
 function applyPreset(source, medium) {
-  document.getElementById('new-source').value = source;
-  document.getElementById('new-medium').value = medium;
+  const sel = document.getElementById('new-source');
+  // match case-insensitively to the available options
+  const options = Array.from(sel.options).map(o => o.value);
+  const match = options.find(o => o.toLowerCase() === source.toLowerCase());
+  sel.value = match || '';
+  const medSel = document.getElementById('new-medium');
+  const medCustom = document.getElementById('new-medium-custom');
+  const medOpts = Array.from(medSel.options).map(o => o.value);
+  if (medOpts.includes(medium)) {
+    medSel.value = medium;
+    medCustom.style.display = 'none';
+    medCustom.value = '';
+  } else {
+    medSel.value = '기타';
+    medCustom.style.display = 'block';
+    medCustom.value = medium;
+  }
   document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
   event.target.classList.add('active');
 }
